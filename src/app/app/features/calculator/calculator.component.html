@@ -1,0 +1,54 @@
+<form [formGroup]="form" (ngSubmit)="onCalc()" class="stack">
+  <fieldset>
+    <legend>Wejście</legend>
+    <label><input type="radio" value="total" formControlName="mode"> Zużycie łączne (kWh)</label>
+    <label><input type="radio" value="meters" formControlName="mode"> Z liczników (pokoje)</label>
+  </fieldset>
+
+  <ng-container *ngIf="form.value.mode === 'total'; else metersTpl">
+    <label>
+      Zużycie roczne [kWh]
+      <input type="number" formControlName="consumptionTotal" min="0" />
+    </label>
+  </ng-container>
+
+  <ng-template #metersTpl>
+    <div formArrayName="meters" class="meters">
+      <div *ngFor="let m of meters.controls; let i = index" [formGroupName]="i" class="meter">
+        <input type="text" formControlName="name" placeholder="Nazwa (np. Pokój 1)" />
+        <input type="number" formControlName="start" placeholder="Odczyt start" />
+        <input type="number" formControlName="end" placeholder="Odczyt koniec" />
+        <button type="button" (click)="removeMeter(i)">Usuń</button>
+        <small *ngIf="meterError(i)" class="err">{{ meterError(i) }}</small>
+      </div>
+    </div>
+    <button type="button" (click)="addMeter()">+ Dodaj licznik</button>
+
+    <p><strong>Suma zużycia z liczników:</strong> {{ metersConsumption() | number:'1.0-2' }} kWh</p>
+  </ng-template>
+
+  <label>
+    Okres
+    <select formControlName="period">
+      <option value="year">Rok</option>
+      <option value="month">Miesiąc</option>
+    </select>
+  </label>
+
+  <label>
+    <input type="checkbox" formControlName="includeVat" />
+    Uwzględnij VAT (19%)
+  </label>
+
+  <button type="submit" [disabled]="formInvalid()">Oblicz</button>
+</form>
+
+<ng-container *ngIf="result() as r">
+  <hr />
+  <h3>Wynik</h3>
+  <p>AP (mix) netto: <strong>{{ r.apMixedCtNet | number:'1.2-2' }}</strong> ct/kWh</p>
+  <p>AP ({{ form.value.includeVat ? 'brutto' : 'netto' }}): <strong>{{ r.apMixedEur | number:'1.4-4' }}</strong> €/kWh</p>
+  <p>GP za okres: <strong>{{ r.gpEurForPeriod | number:'1.2-2' }}</strong> €</p>
+  <p>Koszt energii ({{ r.totalConsumptionKwh | number:'1.0-0' }} kWh): <strong>{{ r.energyCostEur | number:'1.2-2' }}</strong> €</p>
+  <h2>Suma: {{ r.totalCostEur | number:'1.2-2' }} €</h2>
+</ng-container>

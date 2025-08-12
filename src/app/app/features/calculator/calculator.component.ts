@@ -1,6 +1,13 @@
 import { Component, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormArray,
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators
+} from '@angular/forms';
 import { CalcService } from '../../core/calc.service';
 
 type InputMode = 'total' | 'meters';
@@ -15,87 +22,28 @@ interface MeterForm {
   selector: 'app-calculator',
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
-  template: `
-  <form [formGroup]="form" (ngSubmit)="onCalc()" class="stack">
-    <fieldset>
-      <legend>Wejście</legend>
-      <label><input type="radio" value="total" formControlName="mode"> Zużycie łączne (kWh)</label>
-      <label><input type="radio" value="meters" formControlName="mode"> Z liczników (pokoje)</label>
-    </fieldset>
-
-    <ng-container *ngIf="form.value.mode === 'total'; else metersTpl">
-      <label>
-        Zużycie roczne [kWh]
-        <input type="number" formControlName="consumptionTotal" min="0" />
-      </label>
-    </ng-container>
-
-    <ng-template #metersTpl>
-      <div formArrayName="meters" class="meters">
-        <div *ngFor="let m of meters.controls; let i = index" [formGroupName]="i" class="meter">
-          <input type="text" formControlName="name" placeholder="Nazwa (np. Pokój 1)" />
-          <input type="number" formControlName="start" placeholder="Odczyt start" />
-          <input type="number" formControlName="end" placeholder="Odczyt koniec" />
-          <button type="button" (click)="removeMeter(i)">Usuń</button>
-          <small *ngIf="meterError(i)" class="err">{{ meterError(i) }}</small>
-        </div>
-      </div>
-      <button type="button" (click)="addMeter()">+ Dodaj licznik</button>
-
-      <p><strong>Suma zużycia z liczników:</strong> {{ metersConsumption() | number:'1.0-2' }} kWh</p>
-    </ng-template>
-
-    <label>
-      Okres
-      <select formControlName="period">
-        <option value="year">Rok</option>
-        <option value="month">Miesiąc</option>
-      </select>
-    </label>
-
-    <label>
-      <input type="checkbox" formControlName="includeVat" />
-      Uwzględnij VAT (19%)
-    </label>
-
-    <button type="submit" [disabled]="formInvalid()">Oblicz</button>
-  </form>
-
-  <ng-container *ngIf="result() as r">
-    <hr />
-    <h3>Wynik</h3>
-    <p>AP (mix) netto: <strong>{{ r.apMixedCtNet | number:'1.2-2' }}</strong> ct/kWh</p>
-    <p>AP ({{ form.value.includeVat ? 'brutto' : 'netto' }}): <strong>{{ r.apMixedEur | number:'1.4-4' }}</strong> €/kWh</p>
-    <p>GP za okres: <strong>{{ r.gpEurForPeriod | number:'1.2-2' }}</strong> €</p>
-    <p>Koszt energii ({{ r.totalConsumptionKwh | number:'1.0-0' }} kWh): <strong>{{ r.energyCostEur | number:'1.2-2' }}</strong> €</p>
-    <h2>Suma: {{ r.totalCostEur | number:'1.2-2' }} €</h2>
-  </ng-container>
-  `,
-  styles: [`
-    .stack { display:grid; gap:.75rem; max-width:720px; padding:1rem; }
-    fieldset { border:1px solid #ddd; border-radius:8px; padding:.5rem .75rem; }
-    input, select, button { padding:.5rem; }
-    .meters { display:grid; gap:.5rem; }
-    .meter { display:grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap:.5rem; align-items:center; }
-    .err { color:#b00020; }
-  `]
+  templateUrl: './calculator.component.html',
+  styleUrls: ['./calculator.component.css']
 })
 export class CalculatorComponent {
-  form = this.fb.group({
-    mode: ['total' as InputMode, Validators.required],
-    consumptionTotal: [null as number | null],
-    period: ['year', Validators.required],
-    includeVat: [true],
-    meters: this.fb.array<FormGroup<MeterForm>>([])
-  });
-
+  form!: FormGroup;
   result = signal<ReturnType<CalcService['compute']> | null>(null);
 
   constructor(private fb: FormBuilder, private calc: CalcService) {
+    // inicjalizacja formularza W KONSTRUKTORZE (żeby nie używać this.fb przed inicjalizacją)
+    this.form = this.fb.group({
+      mode: ['total' as InputMode, Validators.required],
+      consumptionTotal: [null as number | null],
+      period: ['year', Validators.required],
+      includeVat: [true],
+      meters: this.fb.array<FormGroup<MeterForm>>([])
+    });
+
+    // startowo 2 liczniki
     this.addMeter('Pokój 1');
     this.addMeter('Pokój 2');
 
-    // dynamiczna walidacja dla trybu "total"
+    // dynamiczna walidacja pola "consumptionTotal" zależnie od trybu
     effect(() => {
       const control = this.form.get('consumptionTotal');
       if (this.form.value.mode === 'total') {
@@ -108,7 +56,9 @@ export class CalculatorComponent {
     });
   }
 
-  get meters() { return this.form.get('meters') as FormArray<FormGroup<MeterForm>>; }
+  get meters() {
+    return this.form.get('meters') as FormArray<FormGroup<MeterForm>>;
+  }
 
   addMeter(name = '') {
     const g = this.fb.group<MeterForm>({
@@ -146,7 +96,7 @@ export class CalculatorComponent {
       const c = this.form.get('consumptionTotal')?.value ?? null;
       return this.form.invalid || c === null || c < 0;
     }
-    // meters mode: sprawdź lokalne błędy
+    // meters mode: lokalna weryfikacja
     const hasNeg = this.meters.controls.some(g => {
       const s = g.get('start')!.value ?? null;
       const e = g.get('end')!.value ?? null;
